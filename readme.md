@@ -14,7 +14,7 @@ The project also includes a frontend that interacts with the API for a seamless 
 1. Clone the repository:
    ```bash
    git clone https://github.com/shariqsajad88/Django_login_app.git
-   cd drf-auth-system
+   cd auth_project
    ```
 2. Create a virtual environment and activate it:
    ```bash
