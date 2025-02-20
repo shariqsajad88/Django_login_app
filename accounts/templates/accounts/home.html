@@ -1,0 +1,274 @@
+<!-- accounts/templates/accounts/home.html (updated) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .user-info {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .settings-panel {
+            background-color: #f0f7ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .logout-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        .enable-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .disable-btn {
+            background-color: #ff9800;
+            color: white;
+        }
+        .message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Welcome to Your Dashboard</h1>
+        <button class="logout-btn" onclick="logoutUser()">Logout</button>
+    </div>
+    
+    <div id="content">
+        <div class="user-info">
+            <h2>User Profile</h2>
+            <p id="loading">Loading your profile...</p>
+            <div id="profile-data" style="display: none;">
+                <p><strong>Username:</strong> <span id="profile-username"></span></p>
+                <p><strong>Email:</strong> <span id="profile-email"></span></p>
+                <p><strong>Bio:</strong> <span id="profile-bio"></span></p>
+            </div>
+        </div>
+        
+        <div class="settings-panel">
+            <h2>Security Settings</h2>
+            <div id="two-factor-status">
+                <p><strong>Two-Factor Authentication:</strong> <span id="two-factor-state">Loading...</span></p>
+                <div id="two-factor-buttons">
+                    <button id="enable-2fa-btn" class="enable-btn" onclick="enableTwoFactor()" style="display: none;">Enable 2FA</button>
+                    <button id="disable-2fa-btn" class="disable-btn" onclick="disableTwoFactor()" style="display: none;">Disable 2FA</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="welcome-message">
+            <h2>Welcome to your home page!</h2>
+            <p>This is a protected area that only logged-in users can see.</p>
+        </div>
+    </div>
+    
+    <div id="message" class="message" style="display: none;"></div>
+
+    <script>
+        // Check if user is logged in
+        function checkAuth() {
+            if (!sessionStorage.getItem('is_authenticated')) {
+                window.location.href = '/login';
+            }
+        }
+        
+        // Load user profile data
+        function loadProfile() {
+            fetch('/api/home/', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Not authenticated');
+                }
+            })
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('profile-data').style.display = 'block';
+                
+                document.getElementById('profile-username').textContent = data.user.username;
+                document.getElementById('profile-email').textContent = data.user.email;
+                document.getElementById('profile-bio').textContent = data.user.bio || 'No bio provided';
+                
+                // Update 2FA status
+                updateTwoFactorStatus(data.user.two_factor_enabled);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                sessionStorage.removeItem('is_authenticated');
+                window.location.href = '/login';
+            });
+        }
+        
+        function updateTwoFactorStatus(isEnabled) {
+            const statusSpan = document.getElementById('two-factor-state');
+            const enableBtn = document.getElementById('enable-2fa-btn');
+            const disableBtn = document.getElementById('disable-2fa-btn');
+            
+            if (isEnabled) {
+                statusSpan.textContent = 'Enabled';
+                statusSpan.style.color = '#155724';
+                enableBtn.style.display = 'none';
+                disableBtn.style.display = 'inline-block';
+            } else {
+                statusSpan.textContent = 'Disabled';
+                statusSpan.style.color = '#721c24';
+                enableBtn.style.display = 'inline-block';
+                disableBtn.style.display = 'none';
+            }
+        }
+        
+        function enableTwoFactor() {
+            fetch('/api/toggle-2fa/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(data => {
+                        showMessage('Two-factor authentication has been enabled.', 'success');
+                        updateTwoFactorStatus(true);
+                    });
+                } else {
+                    return response.json().then(data => {
+                        showMessage(`Failed to enable 2FA: ${data.detail}`, 'error');
+                    });
+                }
+            })
+            .catch(error => {
+                showMessage('An error occurred. Please try again.', 'error');
+                console.error('Error:', error);
+            });
+        }
+        
+        function disableTwoFactor() {
+            fetch('/api/disable-2fa/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(data => {
+                        showMessage('Two-factor authentication has been disabled.', 'success');
+                        updateTwoFactorStatus(false);
+                    });
+                } else {
+                    return response.json().then(data => {
+                        showMessage(`Failed to disable 2FA: ${data.detail}`, 'error');
+                    });
+                }
+            })
+            .catch(error => {
+                showMessage('An error occurred. Please try again.', 'error');
+                console.error('Error:', error);
+            });
+        }
+        
+        // Logout user
+        function logoutUser() {
+            fetch('/api/logout/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                sessionStorage.removeItem('user_id');
+                sessionStorage.removeItem('username');
+                sessionStorage.removeItem ('is_authenticated');
+                window.location.href = '/login';
+            });
+        }
+
+        // Show messages to the user
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith(name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Run authentication check and load user profile on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            loadProfile();
+        });
+    </script>
+</body>
+</html>
+
+                
